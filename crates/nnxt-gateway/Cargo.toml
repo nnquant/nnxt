@@ -1,0 +1,16 @@
+[package]
+name = "nnxt-gateway"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+nnxt-master = { path = "../nnxt-master" }
+nnxt-rapid = { path = "../nnxt-rapid" }
+nnxt-specs = { path = "../nnxt-specs" }
+nnxt-utils = { path = "../nnxt-utils" }
+nng = "1.0"
+serde_json = "1.0"
+nnxt-strategy = { path = "../nnxt-strategy" }
+
+[dev-dependencies]

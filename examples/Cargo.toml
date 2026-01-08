@@ -1,0 +1,42 @@
+[package]
+name = "examples"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+nnxt-actors = { path = "../crates/nnxt-actors" }
+nnxt-master = { path = "../crates/nnxt-master" }
+nnxt-gateway = { path = "../crates/nnxt-gateway" }
+nnxt-rapid = { path = "../crates/nnxt-rapid" }
+nnxt-specs = { path = "../crates/nnxt-specs" }
+nnxt-strategy = { path = "../crates/nnxt-strategy" }
+nnxt-utils = { path = "../crates/nnxt-utils" }
+tracing = "0.1"
+ctrlc = "3.4"
+nng = "1.0"
+serde_json = "1.0"
+
+[[bin]]
+name = "master"
+path = "master.rs"
+
+[[bin]]
+name = "gateway"
+path = "gateway.rs"
+
+[[bin]]
+name = "consumer"
+path = "consumer.rs"
+
+[[bin]]
+name = "market-sim"
+path = "market_sim.rs"
+
+[[bin]]
+name = "trade-sim"
+path = "trade_sim.rs"
+
+[[bin]]
+name = "demo-strategy"
+path = "demo_strategy.rs"

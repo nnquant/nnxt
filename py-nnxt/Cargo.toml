@@ -1,0 +1,20 @@
+[package]
+name = "py-nnxt"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "py_nnxt"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"] }
+nnxt-specs = { path = "../crates/nnxt-specs" }
+nnxt-strategy = { path = "../crates/nnxt-strategy" }
+nnxt-rapid = { path = "../crates/nnxt-rapid" }
+nnxt-utils = { path = "../crates/nnxt-utils" }
+tracing = "0.1"
+
+[package.metadata.maturin]
+name = "nnxt"

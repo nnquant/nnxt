@@ -1,0 +1,14 @@
+[package]
+name = "nnxt-actors"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+nnxt-rapid = { path = "../nnxt-rapid" }
+nnxt-utils = { path = "../nnxt-utils" }
+nng = "1.0"
+crossbeam-channel = "0.5"
+
+[dev-dependencies]
+criterion = "0.5"

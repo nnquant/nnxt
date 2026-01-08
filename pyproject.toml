@@ -1,0 +1,26 @@
+[project]
+name = "nnxt-workspace"
+version = "0.1.0"
+description = "nnxt monorepo workspace"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "maturin>=1.5",
+    "pytest>=7.0",
+    "ruff>=0.4.0",
+    "mypy>=1.8.0",
+]
+
+[tool.uv]
+managed = true
+
+[tool.uv.workspace]
+members = [
+    "py-nnxt",
+    "gateways/nnxt-qmt",
+]
+
+[tool.uv.sources]
+nnxt = { workspace = true }

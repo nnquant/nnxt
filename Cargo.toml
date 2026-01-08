@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/nnxt-rapid",
+    "crates/nnxt-actors",
+    "benches",
+    "crates/nnxt-specs",
+    "crates/nnxt-utils",
+    "crates/nnxt-master",
+    "crates/nnxt-gateway",
+    "examples",
+    "crates/nnxt-strategy",
+    "py-nnxt",
+]
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"

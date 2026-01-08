@@ -1,0 +1,19 @@
+[package]
+name = "benches"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nnxt-rapid = { path = "../crates/nnxt-rapid" }
+
+[[bin]]
+name = "latency"
+path = "latency.rs"
+
+[[bin]]
+name = "producer"
+path = "producer.rs"
+
+[[bin]]
+name = "bench-consumer"
+path = "consumer.rs"

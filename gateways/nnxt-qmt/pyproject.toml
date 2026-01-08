@@ -1,0 +1,11 @@
+[project]
+name = "nnxt-qmt"
+version = "0.1.0"
+description = "nnxt gateway for QMT"
+requires-python = ">=3.9"
+dependencies = [
+    "nnxt",
+]
+
+[tool.uv]
+managed = true
