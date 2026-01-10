@@ -1,6 +1,6 @@
 //! Gateway runners for driving Python gateways.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -290,8 +290,7 @@ pub struct TradeGatewayRunner<G: TradeGatewayCallbacks> {
     last_heartbeat_ns: u64,
     clock: Box<dyn Clock + Send + Sync>,
     control_addr: Option<String>,
-    action_sources: HashMap<usize, String>,
-    action_queue_paths: HashSet<String>,
+    action_sources: HashSet<usize>,
     shutdown: ShutdownSignal,
 }
 
@@ -310,8 +309,7 @@ impl<G: TradeGatewayCallbacks> TradeGatewayRunner<G> {
             config,
             master,
             control_addr,
-            action_sources: HashMap::new(),
-            action_queue_paths: HashSet::new(),
+            action_sources: HashSet::new(),
             shutdown: setup_signal(),
         })
     }
@@ -359,7 +357,7 @@ impl<G: TradeGatewayCallbacks> TradeGatewayRunner<G> {
     fn handle_event(&mut self, event: Event, ctx: &mut ActorContext) -> Result<bool, RunnerError> {
         match event {
             Event::Data { source_id, ptr } => {
-                if self.action_sources.contains_key(&source_id) {
+                if self.action_sources.contains(&source_id) {
                     let action = unsafe { *(ptr as *const Action) };
                     self.gateway.on_action(&action)?;
                 }
@@ -407,14 +405,10 @@ impl<G: TradeGatewayCallbacks> TradeGatewayRunner<G> {
         ctx: &mut ActorContext,
         addr: &str,
     ) -> Result<(), RunnerError> {
-        if self.action_queue_paths.contains(addr) {
-            return Ok(());
-        }
         for attempt in 1..=ACTION_QUEUE_MAX_RETRIES {
             match ctx.read_from::<Action>(addr) {
                 Ok(source_id) => {
-                    self.action_sources.insert(source_id, addr.to_string());
-                    self.action_queue_paths.insert(addr.to_string());
+                    self.action_sources.insert(source_id);
                     return Ok(());
                 }
                 Err(nnxt_actors::Error::RapidError(nnxt_rapid::Error::NotFound)) => {

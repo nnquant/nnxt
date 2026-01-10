@@ -425,14 +425,7 @@ impl<S: Strategy> StrategyRunner<S> {
 
     fn apply_actions(&mut self, now_ns: u64, actions: &[Action]) {
         for action in actions {
-            match action.kind {
-                ActionKind::NewOrder => {
-                    self.state.on_action_sent(action, now_ns);
-                }
-                ActionKind::CancelOrder => {
-                    self.state.on_action_sent(action, now_ns);
-                }
-            }
+            self.state.on_action_sent(action, now_ns);
         }
     }
 
