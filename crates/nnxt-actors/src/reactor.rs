@@ -3,6 +3,11 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::thread::JoinHandle;
 use std::time::Duration;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
@@ -16,6 +21,8 @@ use crate::event::Event;
 
 pub type RapidSourcesHandle = Rc<RefCell<Vec<RapidSource>>>;
 pub type ControlHandle = Rc<RefCell<Option<Socket>>>;
+
+const CONTROL_RECV_TIMEOUT_MS: u64 = 1;
 
 pub trait EventSource {
     fn poll(&mut self) -> Option<Event>;
@@ -94,6 +101,11 @@ impl EventSource for ChannelSource {
     }
 }
 
+struct ControlListener {
+    stop: Arc<AtomicBool>,
+    handle: JoinHandle<()>,
+}
+
 #[derive(Default)]
 struct TimerEntry {
     timer_id: u64,
@@ -132,6 +144,8 @@ pub struct Reactor {
     control_source: ControlSource,
     channel_source: ChannelSource,
     external_tx: Sender<Box<dyn Any + Send>>,
+    control_rx: Option<Receiver<Vec<u8>>>,
+    control_listener: Option<ControlListener>,
     shutdown: nnxt_utils::signal::ShutdownSignal,
     timers: TimerManager,
     poll_count: u64,
@@ -156,6 +170,8 @@ impl Reactor {
             control_source: ControlSource::new(control_handle),
             channel_source: ChannelSource::new(rx),
             external_tx: tx,
+            control_rx: None,
+            control_listener: None,
             shutdown: setup_signal(),
             timers: TimerManager::default(),
             poll_count: 0,
@@ -186,6 +202,7 @@ impl Reactor {
             return Some(Event::Shutdown);
         }
 
+        self.ensure_control_listener();
         for source in self.rapid_sources.borrow_mut().iter_mut() {
             if let Some(event) = source.poll() {
                 return Some(event);
@@ -196,10 +213,18 @@ impl Reactor {
             return Some(event);
         }
 
+        if let Some(rx) = self.control_rx.as_ref() {
+            if let Ok(message) = rx.try_recv() {
+                return Some(Event::Control { message });
+            }
+        }
+
         self.poll_count = self.poll_count.wrapping_add(1);
         if self.poll_count % self.control_poll_interval == 0 {
-            if let Some(event) = self.control_source.poll() {
-                return Some(event);
+            if self.control_listener.is_none() {
+                if let Some(event) = self.control_source.poll() {
+                    return Some(event);
+                }
             }
             if let Some(timer_id) = self.timers.poll_due(self.clock.now_ns()) {
                 return Some(Event::Timer { timer_id });
@@ -219,6 +244,55 @@ impl Reactor {
 
     pub fn add_timer(&mut self, timer_id: u64, due_ns: u64) {
         self.timers.add_timer(timer_id, due_ns);
+    }
+
+    fn ensure_control_listener(&mut self) {
+        if self.control_listener.is_some() {
+            return;
+        }
+        let socket = self.control_handle.borrow().as_ref().cloned();
+        let Some(socket) = socket else {
+            return;
+        };
+
+        let (tx, rx) = unbounded::<Vec<u8>>();
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_flag = Arc::clone(&stop);
+        let shutdown = self.shutdown.clone();
+        let thread_socket = socket.clone();
+        let _ = thread_socket
+            .set_opt::<RecvTimeout>(Some(Duration::from_millis(CONTROL_RECV_TIMEOUT_MS)));
+
+        let handle = std::thread::Builder::new()
+            .name("nnxt-control-listener".to_string())
+            .spawn(move || loop {
+                if stop_flag.load(Ordering::SeqCst) || shutdown.is_shutdown() {
+                    break;
+                }
+                match thread_socket.recv() {
+                    Ok(msg) => {
+                        if tx.send(msg.as_slice().to_vec()).is_err() {
+                            break;
+                        }
+                    }
+                    Err(nng::Error::TimedOut) => continue,
+                    Err(_) => break,
+                }
+            });
+
+        if let Ok(handle) = handle {
+            self.control_rx = Some(rx);
+            self.control_listener = Some(ControlListener { stop, handle });
+        }
+    }
+}
+
+impl Drop for Reactor {
+    fn drop(&mut self) {
+        if let Some(listener) = self.control_listener.take() {
+            listener.stop.store(true, Ordering::SeqCst);
+            let _ = listener.handle.join();
+        }
     }
 }
 
@@ -240,6 +314,8 @@ impl<T: Copy + Send + 'static> AnyReader for TypedReader<T> {
 mod tests {
     use super::*;
     use nnxt_rapid::{cleanup, Address, Writer};
+    use nng::{Protocol, Socket};
+    use std::time::Duration;
 
     #[test]
     fn reactor_polls_channel_event() {
@@ -270,5 +346,30 @@ mod tests {
             }
             other => panic!("expected data event, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn reactor_polls_control_event_with_listener() {
+        let addr = format!("ipc:///tmp/nnxt-reactor-control-{}", std::process::id());
+        let server = Socket::new(Protocol::Rep0).expect("control socket");
+        server.listen(&addr).expect("listen");
+
+        let mut reactor = Reactor::new();
+        reactor.set_control_socket(server).expect("set control");
+
+        let client = Socket::new(Protocol::Req0).expect("client socket");
+        client.dial(&addr).expect("dial");
+        client.send(b"ping".as_slice()).expect("send");
+
+        let mut handled = false;
+        for _ in 0..50 {
+            if let Some(Event::Control { message }) = reactor.poll() {
+                assert_eq!(message, b"ping".to_vec());
+                handled = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(handled);
     }
 }

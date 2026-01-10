@@ -258,8 +258,11 @@ impl<S: Strategy> StrategyRunner<S> {
         let subscriptions = std::mem::take(&mut self.pending_subscriptions);
         for subscription in subscriptions {
             let addr = if let Some(master) = self.master.as_mut() {
-                info!("queue request event=[QUEUE_REQUEST] queue_type=[market]");
-                wait_for_queue(master, "market")?
+                info!(
+                    "queue request event=[QUEUE_REQUEST] actor_type=[{}] queue_type=[market]",
+                    subscription.source
+                );
+                wait_for_queue_by_actor(master, &subscription.source, "market")?
             } else {
                 subscription.source
             };
@@ -487,7 +490,11 @@ const MAX_QUEUE_RETRIES: u32 = 10;
 const INITIAL_RETRY_DELAY_MS: u64 = 100;
 const MAX_RETRY_DELAY_MS: u64 = 5000;
 
-fn wait_for_queue(master: &mut MasterClient, queue_type: &str) -> Result<String, RunnerError> {
+fn wait_for_queue_by_actor(
+    master: &mut MasterClient,
+    actor_type: &str,
+    queue_type: &str,
+) -> Result<String, RunnerError> {
     let shutdown = setup_signal();
     let mut delay_ms = INITIAL_RETRY_DELAY_MS;
 
@@ -495,20 +502,20 @@ fn wait_for_queue(master: &mut MasterClient, queue_type: &str) -> Result<String,
         if shutdown.is_shutdown() {
             return Err(RunnerError::Shutdown);
         }
-        let queues = master.find_queues(queue_type)?;
+        let queues = master.find_queues_by_actor(actor_type, queue_type)?;
         if let Some(queue) = queues.first() {
             return Ok(queue.addr.clone());
         }
         warn!(
-            "queue not found event=[QUEUE_NOT_FOUND] queue_type=[{}] attempt=[{}/{}] retry_ms=[{}]",
-            queue_type, attempt, MAX_QUEUE_RETRIES, delay_ms
+            "queue not found event=[QUEUE_NOT_FOUND] actor_type=[{}] queue_type=[{}] attempt=[{}/{}]",
+            actor_type, queue_type, attempt, MAX_QUEUE_RETRIES
         );
         std::thread::sleep(Duration::from_millis(delay_ms));
         delay_ms = (delay_ms * 2).min(MAX_RETRY_DELAY_MS);
     }
 
     Err(RunnerError::QueueNotFound {
-        queue_type: queue_type.to_string(),
+        queue_type: format!("{}:{}", actor_type, queue_type),
     })
 }
 

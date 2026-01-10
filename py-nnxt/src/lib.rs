@@ -3,7 +3,12 @@
 //! :module: nnxt
 
 use std::str::FromStr;
+use std::time::Duration;
 
+use nnxt_gateway::{
+    MarketGatewayCallbacks, MarketGatewayRunner, MarketGatewayRunnerConfig, RunnerError,
+    TradeGatewayCallbacks, TradeGatewayRunner, TradeGatewayRunnerConfig,
+};
 use nnxt_rapid::{Address, Writer};
 use nnxt_specs::market::{InstrumentId, ORDER_BOOK_DEPTH};
 use nnxt_specs::{OrderBook, OrderEvent, OrderStatus, PriceType, Side, TradeEvent};
@@ -12,7 +17,7 @@ use nnxt_utils::clock::{Clock, InstantClock, MonotonicClock};
 use nnxt_utils::{setup_log as nnxt_setup_log, setup_signal};
 use pyo3::exceptions::{PyKeyboardInterrupt, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyModule, PyTuple, PyType};
+use pyo3::types::{PyAny, PyDict, PyModule, PyTuple, PyType};
 use tracing::{debug, error, info, warn};
 
 /// Python wrapper for InstrumentId.
@@ -263,6 +268,18 @@ impl PyOrderEvent {
     }
 
     #[getter]
+    fn instrument(&self) -> PyResult<PyInstrumentId> {
+        Ok(PyInstrumentId {
+            inner: self.inner.instrument_id,
+        })
+    }
+
+    #[setter]
+    fn set_instrument(&mut self, value: &PyInstrumentId) {
+        self.inner.instrument_id = value.inner;
+    }
+
+    #[getter]
     fn status(&self) -> u8 {
         self.inner.status as u8
     }
@@ -271,6 +288,36 @@ impl PyOrderEvent {
     fn set_status(&mut self, value: u8) -> PyResult<()> {
         self.inner.status = parse_order_status(value)?;
         Ok(())
+    }
+
+    #[getter]
+    fn filled_quantity(&self) -> u64 {
+        self.inner.filled_quantity
+    }
+
+    #[setter]
+    fn set_filled_quantity(&mut self, value: u64) {
+        self.inner.filled_quantity = value;
+    }
+
+    #[getter]
+    fn remaining_quantity(&self) -> u64 {
+        self.inner.remaining_quantity
+    }
+
+    #[setter]
+    fn set_remaining_quantity(&mut self, value: u64) {
+        self.inner.remaining_quantity = value;
+    }
+
+    #[getter]
+    fn last_price(&self) -> f64 {
+        self.inner.last_price
+    }
+
+    #[setter]
+    fn set_last_price(&mut self, value: f64) {
+        self.inner.last_price = value;
     }
 
     #[getter]
@@ -321,6 +368,39 @@ impl PyTradeEvent {
     }
 
     #[getter]
+    fn instrument(&self) -> PyResult<PyInstrumentId> {
+        Ok(PyInstrumentId {
+            inner: self.inner.instrument_id,
+        })
+    }
+
+    #[setter]
+    fn set_instrument(&mut self, value: &PyInstrumentId) {
+        self.inner.instrument_id = value.inner;
+    }
+
+    #[getter]
+    fn side(&self) -> u8 {
+        self.inner.side as u8
+    }
+
+    #[setter]
+    fn set_side(&mut self, value: u8) -> PyResult<()> {
+        self.inner.side = parse_side(value)?;
+        Ok(())
+    }
+
+    #[getter]
+    fn quantity(&self) -> u64 {
+        self.inner.quantity
+    }
+
+    #[setter]
+    fn set_quantity(&mut self, value: u64) {
+        self.inner.quantity = value;
+    }
+
+    #[getter]
     fn trade_id(&self) -> u64 {
         self.inner.trade_id
     }
@@ -363,6 +443,7 @@ pub struct PyAction {
 #[pymethods]
 impl PyAction {
     #[classmethod]
+    #[pyo3(signature = (order_id, instrument, price, qty, side, price_type, client_order_id = 0, timestamp = 0))]
     fn new_order(
         _cls: &Bound<'_, PyType>,
         order_id: u64,
@@ -371,25 +452,166 @@ impl PyAction {
         qty: u64,
         side: u8,
         price_type: u8,
+        client_order_id: u64,
+        timestamp: u64,
     ) -> PyResult<Self> {
         let order = nnxt_strategy::NewOrder {
             instrument_id: instrument.inner,
             order_id,
-            client_order_id: 0,
+            client_order_id,
             side: parse_side(side)?,
             price_type: parse_price_type(price_type)?,
             limit_price: price,
             quantity: qty,
-            timestamp: 0,
+            timestamp,
         };
         Ok(Self {
             inner: Action::new_order(order),
         })
     }
 
+    #[classmethod]
+    #[pyo3(signature = (order_id, instrument, timestamp = 0))]
+    fn cancel_order(
+        _cls: &Bound<'_, PyType>,
+        order_id: u64,
+        instrument: &PyInstrumentId,
+        timestamp: u64,
+    ) -> PyResult<Self> {
+        let cancel = nnxt_strategy::CancelOrder {
+            instrument_id: instrument.inner,
+            order_id,
+            timestamp,
+        };
+        Ok(Self {
+            inner: Action::cancel_order(cancel),
+        })
+    }
+
+    #[classattr]
+    const NEW_ORDER: u8 = nnxt_strategy::ActionKind::NewOrder as u8;
+    #[classattr]
+    const CANCEL_ORDER: u8 = nnxt_strategy::ActionKind::CancelOrder as u8;
+
     #[getter]
     fn kind(&self) -> u8 {
         self.inner.kind as u8
+    }
+
+    #[getter]
+    fn new_order_order_id(&self) -> u64 {
+        self.inner.new_order.order_id
+    }
+
+    #[setter]
+    fn set_new_order_order_id(&mut self, value: u64) {
+        self.inner.new_order.order_id = value;
+    }
+
+    #[getter]
+    fn new_order_client_order_id(&self) -> u64 {
+        self.inner.new_order.client_order_id
+    }
+
+    #[setter]
+    fn set_new_order_client_order_id(&mut self, value: u64) {
+        self.inner.new_order.client_order_id = value;
+    }
+
+    #[getter]
+    fn new_order_instrument(&self) -> PyResult<PyInstrumentId> {
+        Ok(PyInstrumentId {
+            inner: self.inner.new_order.instrument_id,
+        })
+    }
+
+    #[setter]
+    fn set_new_order_instrument(&mut self, value: &PyInstrumentId) {
+        self.inner.new_order.instrument_id = value.inner;
+    }
+
+    #[getter]
+    fn new_order_side(&self) -> u8 {
+        self.inner.new_order.side as u8
+    }
+
+    #[setter]
+    fn set_new_order_side(&mut self, value: u8) -> PyResult<()> {
+        self.inner.new_order.side = parse_side(value)?;
+        Ok(())
+    }
+
+    #[getter]
+    fn new_order_price_type(&self) -> u8 {
+        self.inner.new_order.price_type as u8
+    }
+
+    #[setter]
+    fn set_new_order_price_type(&mut self, value: u8) -> PyResult<()> {
+        self.inner.new_order.price_type = parse_price_type(value)?;
+        Ok(())
+    }
+
+    #[getter]
+    fn new_order_limit_price(&self) -> f64 {
+        self.inner.new_order.limit_price
+    }
+
+    #[setter]
+    fn set_new_order_limit_price(&mut self, value: f64) {
+        self.inner.new_order.limit_price = value;
+    }
+
+    #[getter]
+    fn new_order_quantity(&self) -> u64 {
+        self.inner.new_order.quantity
+    }
+
+    #[setter]
+    fn set_new_order_quantity(&mut self, value: u64) {
+        self.inner.new_order.quantity = value;
+    }
+
+    #[getter]
+    fn new_order_timestamp(&self) -> u64 {
+        self.inner.new_order.timestamp
+    }
+
+    #[setter]
+    fn set_new_order_timestamp(&mut self, value: u64) {
+        self.inner.new_order.timestamp = value;
+    }
+
+    #[getter]
+    fn cancel_order_order_id(&self) -> u64 {
+        self.inner.cancel_order.order_id
+    }
+
+    #[setter]
+    fn set_cancel_order_order_id(&mut self, value: u64) {
+        self.inner.cancel_order.order_id = value;
+    }
+
+    #[getter]
+    fn cancel_order_instrument(&self) -> PyResult<PyInstrumentId> {
+        Ok(PyInstrumentId {
+            inner: self.inner.cancel_order.instrument_id,
+        })
+    }
+
+    #[setter]
+    fn set_cancel_order_instrument(&mut self, value: &PyInstrumentId) {
+        self.inner.cancel_order.instrument_id = value.inner;
+    }
+
+    #[getter]
+    fn cancel_order_timestamp(&self) -> u64 {
+        self.inner.cancel_order.timestamp
+    }
+
+    #[setter]
+    fn set_cancel_order_timestamp(&mut self, value: u64) {
+        self.inner.cancel_order.timestamp = value;
     }
 }
 
@@ -540,6 +762,10 @@ fn call_python_method(obj: &Bound<'_, PyAny>, name: &str) -> PyResult<()> {
     Ok(())
 }
 
+fn py_err_to_runner(err: PyErr) -> RunnerError {
+    RunnerError::Callback(format!("{:?}", err))
+}
+
 fn should_stop(py: Python<'_>) -> PyResult<bool> {
     match py.check_signals() {
         Ok(()) => Ok(false),
@@ -594,68 +820,205 @@ impl PyStrategyRunner {
         Ok(Self { inner })
     }
 
-    fn run(&mut self) -> PyResult<()> {
-        self.inner
-            .run()
-            .map_err(|err| PyRuntimeError::new_err(format!("runner run failed: {:?}", err)))
+    fn run(&mut self, py: Python<'_>) -> PyResult<()> {
+        // Release the GIL so Python threads (e.g., market simulator loop) can run.
+        let result = py.allow_threads(|| self.inner.run());
+        result.map_err(|err| PyRuntimeError::new_err(format!("runner run failed: {:?}", err)))
     }
 }
 
-/// Base Python MarketGateway class.
+/// MarketGatewayRunner for Python gateways.
 ///
+/// :param gateway: python market gateway instance.
+/// :type gateway: MarketGateway
 /// :param queue_path: rapid queue path.
 /// :type queue_path: str
+/// :param master_addr: master address.
+/// :type master_addr: str or None
+#[pyclass(name = "MarketGatewayRunner")]
+pub struct PyMarketGatewayRunner {
+    inner: MarketGatewayRunner<PyMarketGatewayAdapter>,
+}
+
+#[pymethods]
+impl PyMarketGatewayRunner {
+    #[new]
+    #[pyo3(
+        signature = (
+            gateway,
+            queue_path,
+            master_addr = None,
+            actor_id = "market-gateway",
+            actor_type = "market-gateway",
+            heartbeat_interval_ms = 1000,
+            control_addr = None
+        )
+    )]
+    fn new(
+        gateway: Py<PyAny>,
+        queue_path: &str,
+        master_addr: Option<String>,
+        actor_id: &str,
+        actor_type: &str,
+        heartbeat_interval_ms: u64,
+        control_addr: Option<String>,
+    ) -> PyResult<Self> {
+        let config = MarketGatewayRunnerConfig {
+            queue_path: queue_path.to_string(),
+            master_addr,
+            actor_id: actor_id.to_string(),
+            actor_type: actor_type.to_string(),
+            heartbeat_interval: Duration::from_millis(heartbeat_interval_ms),
+            control_addr,
+        };
+        let adapter = PyMarketGatewayAdapter { gateway };
+        let inner = MarketGatewayRunner::new(adapter, config)
+            .map_err(|err| PyRuntimeError::new_err(format!("runner create failed: {:?}", err)))?;
+        Ok(Self { inner })
+    }
+
+    fn run(&mut self, py: Python<'_>) -> PyResult<()> {
+        // Release the GIL so Python callbacks/threads can run.
+        let result = py.allow_threads(|| self.inner.run());
+        result.map_err(|err| PyRuntimeError::new_err(format!("runner run failed: {:?}", err)))
+    }
+}
+
+/// TradeGatewayRunner for Python gateways.
+///
+/// :param gateway: python trade gateway instance.
+/// :type gateway: TradeGateway
+/// :param order_event_queue: order event queue path.
+/// :type order_event_queue: str
+/// :param trade_event_queue: trade event queue path.
+/// :type trade_event_queue: str
+#[pyclass(name = "TradeGatewayRunner")]
+pub struct PyTradeGatewayRunner {
+    inner: TradeGatewayRunner<PyTradeGatewayAdapter>,
+}
+
+#[pymethods]
+impl PyTradeGatewayRunner {
+    #[new]
+    #[pyo3(
+        signature = (
+            gateway,
+            order_event_queue,
+            trade_event_queue,
+            action_queues = None,
+            master_addr = None,
+            actor_id = "trade-gateway",
+            actor_type = "trade-gateway",
+            heartbeat_interval_ms = 1000,
+            control_addr = None
+        )
+    )]
+    fn new(
+        gateway: Py<PyAny>,
+        order_event_queue: &str,
+        trade_event_queue: &str,
+        action_queues: Option<Vec<String>>,
+        master_addr: Option<String>,
+        actor_id: &str,
+        actor_type: &str,
+        heartbeat_interval_ms: u64,
+        control_addr: Option<String>,
+    ) -> PyResult<Self> {
+        let config = TradeGatewayRunnerConfig {
+            order_event_queue: order_event_queue.to_string(),
+            trade_event_queue: trade_event_queue.to_string(),
+            action_queues: action_queues.unwrap_or_default(),
+            master_addr,
+            actor_id: actor_id.to_string(),
+            actor_type: actor_type.to_string(),
+            heartbeat_interval: Duration::from_millis(heartbeat_interval_ms),
+            control_addr,
+        };
+        let adapter = PyTradeGatewayAdapter { gateway };
+        let inner = TradeGatewayRunner::new(adapter, config)
+            .map_err(|err| PyRuntimeError::new_err(format!("runner create failed: {:?}", err)))?;
+        Ok(Self { inner })
+    }
+
+    fn run(&mut self, py: Python<'_>) -> PyResult<()> {
+        // Release the GIL so Python callbacks/threads can run.
+        let result = py.allow_threads(|| self.inner.run());
+        result.map_err(|err| PyRuntimeError::new_err(format!("runner run failed: {:?}", err)))
+    }
+}
+
+/// Base class for MarketGateway callbacks (used with MarketGatewayRunner).
+///
+/// This class does not create a Writer in __init__ - call init_writer() in on_start().
 #[pyclass(name = "MarketGateway", subclass)]
 pub struct PyMarketGateway {
-    writer: Writer<OrderBook>,
+    writer: Option<Writer<OrderBook>>,
 }
 
 #[pymethods]
 impl PyMarketGateway {
     #[new]
+    #[pyo3(signature = (*_args, **_kwargs))]
+    fn new(_args: &Bound<'_, PyTuple>, _kwargs: Option<&Bound<'_, PyDict>>) -> Self {
+        Self { writer: None }
+    }
+
+    /// Initialize the writer. Call this in on_start().
     #[pyo3(signature = (queue_path, capacity = 1024))]
-    fn new(queue_path: &str, capacity: usize) -> PyResult<Self> {
+    fn init_writer(&mut self, queue_path: &str, capacity: usize) -> PyResult<()> {
         let addr = Address::new(queue_path).map_err(|err| {
             PyValueError::new_err(format!("invalid queue path: {:?}", err))
         })?;
         let writer = Writer::create(&addr, capacity)
             .map_err(|err| PyRuntimeError::new_err(format!("writer create failed: {:?}", err)))?;
-        Ok(Self { writer })
+        self.writer = Some(writer);
+        Ok(())
     }
 
-    #[pyo3(signature = (poll_interval_ms = 10))]
-    fn run(slf: PyRefMut<'_, Self>, poll_interval_ms: u64) -> PyResult<()> {
-        let py = slf.py();
-        let obj = slf.as_ptr();
-        let obj = unsafe { Bound::from_borrowed_ptr(py, obj) };
-        run_gateway_loop(&obj, poll_interval_ms)
-    }
-
-    fn publish_order_book(&mut self, book: &PyOrderBook) {
-        self.writer.write(book.inner);
+    fn publish_order_book(&mut self, book: &PyOrderBook) -> PyResult<()> {
+        match &mut self.writer {
+            Some(w) => {
+                w.write(book.inner);
+                Ok(())
+            }
+            None => Err(PyRuntimeError::new_err("writer not initialized, call init_writer() first")),
+        }
     }
 
     fn on_start(&mut self) {}
+    fn on_subscribe(&mut self, _instrument: &PyInstrumentId) {}
+    fn on_unsubscribe(&mut self, _instrument: &PyInstrumentId) {}
     fn on_stop(&mut self) {}
 }
 
-/// Base Python TradeGateway class.
+/// Base class for TradeGateway callbacks (used with TradeGatewayRunner).
 ///
-/// :param order_event_queue: order event queue path.
-/// :type order_event_queue: str
-/// :param trade_event_queue: trade event queue path.
-/// :type trade_event_queue: str
+/// This class does not create Writers in __init__ - call init_writers() in on_start().
 #[pyclass(name = "TradeGateway", subclass)]
 pub struct PyTradeGateway {
-    order_writer: Writer<OrderEvent>,
-    trade_writer: Writer<TradeEvent>,
+    order_writer: Option<Writer<OrderEvent>>,
+    trade_writer: Option<Writer<TradeEvent>>,
 }
 
 #[pymethods]
 impl PyTradeGateway {
     #[new]
+    #[pyo3(signature = (*_args, **_kwargs))]
+    fn new(_args: &Bound<'_, PyTuple>, _kwargs: Option<&Bound<'_, PyDict>>) -> Self {
+        Self {
+            order_writer: None,
+            trade_writer: None,
+        }
+    }
+
+    /// Initialize the writers. Call this in on_start().
     #[pyo3(signature = (order_event_queue, trade_event_queue, capacity = 1024))]
-    fn new(order_event_queue: &str, trade_event_queue: &str, capacity: usize) -> PyResult<Self> {
+    fn init_writers(
+        &mut self,
+        order_event_queue: &str,
+        trade_event_queue: &str,
+        capacity: usize,
+    ) -> PyResult<()> {
         let order_addr = Address::new(order_event_queue).map_err(|err| {
             PyValueError::new_err(format!("invalid order queue: {:?}", err))
         })?;
@@ -666,30 +1029,117 @@ impl PyTradeGateway {
             .map_err(|err| PyRuntimeError::new_err(format!("order writer failed: {:?}", err)))?;
         let trade_writer = Writer::create(&trade_addr, capacity)
             .map_err(|err| PyRuntimeError::new_err(format!("trade writer failed: {:?}", err)))?;
-        Ok(Self {
-            order_writer,
-            trade_writer,
-        })
+        self.order_writer = Some(order_writer);
+        self.trade_writer = Some(trade_writer);
+        Ok(())
     }
 
-    #[pyo3(signature = (poll_interval_ms = 10))]
-    fn run(slf: PyRefMut<'_, Self>, poll_interval_ms: u64) -> PyResult<()> {
-        let py = slf.py();
-        let obj = slf.as_ptr();
-        let obj = unsafe { Bound::from_borrowed_ptr(py, obj) };
-        run_gateway_loop(&obj, poll_interval_ms)
+    fn publish_order_event(&mut self, event: &PyOrderEvent) -> PyResult<()> {
+        match &mut self.order_writer {
+            Some(w) => {
+                w.write(event.inner);
+                Ok(())
+            }
+            None => Err(PyRuntimeError::new_err("writers not initialized")),
+        }
     }
 
-    fn publish_order_event(&mut self, event: &PyOrderEvent) {
-        self.order_writer.write(event.inner);
-    }
-
-    fn publish_trade_event(&mut self, event: &PyTradeEvent) {
-        self.trade_writer.write(event.inner);
+    fn publish_trade_event(&mut self, event: &PyTradeEvent) -> PyResult<()> {
+        match &mut self.trade_writer {
+            Some(w) => {
+                w.write(event.inner);
+                Ok(())
+            }
+            None => Err(PyRuntimeError::new_err("writers not initialized")),
+        }
     }
 
     fn on_start(&mut self) {}
+    fn on_action(&mut self, _action: &PyAction) {}
     fn on_stop(&mut self) {}
+}
+
+struct PyMarketGatewayAdapter {
+    gateway: Py<PyAny>,
+}
+
+impl PyMarketGatewayAdapter {
+    fn call_method0(&self, name: &str) -> Result<(), RunnerError> {
+        Python::with_gil(|py| {
+            let obj = self.gateway.bind(py);
+            obj.call_method0(name).map_err(py_err_to_runner)?;
+            Ok(())
+        })
+    }
+
+    fn call_method_instrument(
+        &self,
+        name: &str,
+        instrument_id: InstrumentId,
+    ) -> Result<(), RunnerError> {
+        Python::with_gil(|py| {
+            let obj = self.gateway.bind(py);
+            let instrument = Py::new(py, PyInstrumentId { inner: instrument_id })
+                .map_err(py_err_to_runner)?;
+            obj.call_method1(name, (instrument,)).map_err(py_err_to_runner)?;
+            Ok(())
+        })
+    }
+}
+
+impl MarketGatewayCallbacks for PyMarketGatewayAdapter {
+    fn on_start(&mut self) -> Result<(), RunnerError> {
+        self.call_method0("on_start")
+    }
+
+    fn on_subscribe(&mut self, instrument_id: InstrumentId) -> Result<(), RunnerError> {
+        self.call_method_instrument("on_subscribe", instrument_id)
+    }
+
+    fn on_unsubscribe(&mut self, instrument_id: InstrumentId) -> Result<(), RunnerError> {
+        self.call_method_instrument("on_unsubscribe", instrument_id)
+    }
+
+    fn on_stop(&mut self) -> Result<(), RunnerError> {
+        self.call_method0("on_stop")
+    }
+}
+
+struct PyTradeGatewayAdapter {
+    gateway: Py<PyAny>,
+}
+
+impl PyTradeGatewayAdapter {
+    fn call_method0(&self, name: &str) -> Result<(), RunnerError> {
+        Python::with_gil(|py| {
+            let obj = self.gateway.bind(py);
+            obj.call_method0(name).map_err(py_err_to_runner)?;
+            Ok(())
+        })
+    }
+
+    fn call_method_action(&self, name: &str, action: &Action) -> Result<(), RunnerError> {
+        Python::with_gil(|py| {
+            let obj = self.gateway.bind(py);
+            let action = Py::new(py, PyAction { inner: *action }).map_err(py_err_to_runner)?;
+            obj.call_method1(name, (action,)).map_err(py_err_to_runner)?;
+            Ok(())
+        })
+    }
+}
+
+impl TradeGatewayCallbacks for PyTradeGatewayAdapter {
+    fn on_start(&mut self) -> Result<(), RunnerError> {
+        self.call_method0("on_start")
+    }
+
+    fn on_action(&mut self, action: &Action) -> Result<(), RunnerError> {
+        self.call_method_action("on_action", action)
+    }
+
+    fn on_stop(&mut self) -> Result<(), RunnerError> {
+        self.call_method0("on_stop")
+    }
 }
 
 struct PyStrategyAdapter {
@@ -770,6 +1220,8 @@ fn py_nnxt(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyStrategyContext>()?;
     m.add_class::<PyStrategy>()?;
     m.add_class::<PyStrategyRunner>()?;
+    m.add_class::<PyMarketGatewayRunner>()?;
+    m.add_class::<PyTradeGatewayRunner>()?;
     m.add_class::<PyMarketGateway>()?;
     m.add_class::<PyTradeGateway>()?;
     m.add_function(wrap_pyfunction!(setup_log, m)?)?;

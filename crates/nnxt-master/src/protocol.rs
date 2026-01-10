@@ -38,6 +38,7 @@ pub enum Request {
     Heartbeat { actor_id: String },
     LookupQueue { queue_addr: String },
     FindQueues { queue_type: String },
+    FindQueuesByActor { actor_type: String, queue_type: String },
     ConnectTrade { target_type: String, actor_id: String },
     ListActors,
     SendCommand { target_actor: String, command: String },

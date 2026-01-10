@@ -179,6 +179,19 @@ impl MasterServer {
                 );
                 Response::QueueList { queues }
             }
+            Request::FindQueuesByActor {
+                actor_type,
+                queue_type,
+            } => {
+                let queues = self.registry.find_queues_by_actor_type(&actor_type, &queue_type);
+                info!(
+                    "queue find event=[QUEUE_FIND_BY_ACTOR] actor_type=[{}] queue_type=[{}] count=[{}]",
+                    actor_type,
+                    queue_type,
+                    queues.len()
+                );
+                Response::QueueList { queues }
+            }
             Request::ConnectTrade {
                 target_type,
                 actor_id: _,

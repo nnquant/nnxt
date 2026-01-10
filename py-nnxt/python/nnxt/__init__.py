@@ -10,6 +10,7 @@ from .nnxt import (
     InstrumentId,
     Intent,
     MarketGateway,
+    MarketGatewayRunner,
     MonotonicClock,
     OrderBook,
     OrderEvent,
@@ -27,6 +28,7 @@ from .nnxt import (
     StrategyRunner,
     TradeEvent,
     TradeGateway,
+    TradeGatewayRunner,
 )
 
 __all__ = [
@@ -35,6 +37,7 @@ __all__ = [
     "InstrumentId",
     "Intent",
     "MarketGateway",
+    "MarketGatewayRunner",
     "MonotonicClock",
     "OrderBook",
     "OrderEvent",
@@ -52,4 +55,5 @@ __all__ = [
     "StrategyRunner",
     "TradeEvent",
     "TradeGateway",
+    "TradeGatewayRunner",
 ]

@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.22", features = ["extension-module"] }
 nnxt-specs = { path = "../crates/nnxt-specs" }
 nnxt-strategy = { path = "../crates/nnxt-strategy" }
+nnxt-gateway = { path = "../crates/nnxt-gateway" }
 nnxt-rapid = { path = "../crates/nnxt-rapid" }
 nnxt-utils = { path = "../crates/nnxt-utils" }
 tracing = "0.1"

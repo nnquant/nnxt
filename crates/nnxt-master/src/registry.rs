@@ -148,6 +148,25 @@ impl ActorRegistry {
             .collect()
     }
 
+    pub fn find_queues_by_actor_type(&self, actor_type: &str, queue_type: &str) -> Vec<QueueInfo> {
+        self.queues
+            .iter()
+            .filter(|(_, owner)| {
+                if owner.queue_type != queue_type {
+                    return false;
+                }
+                self.actors
+                    .get(&owner.owner)
+                    .map(|r| r.registration.actor_type == actor_type)
+                    .unwrap_or(false)
+            })
+            .map(|(addr, owner)| QueueInfo {
+                addr: addr.clone(),
+                queue_type: owner.queue_type.clone(),
+            })
+            .collect()
+    }
+
     pub fn list_actors(&self) -> Vec<ActorSnapshot> {
         self.actors
             .values()

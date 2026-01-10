@@ -37,10 +37,30 @@ class DemoStrategy(nnxt.Strategy):
             )
         )
 
+    def on_order(self, event: nnxt.OrderEvent, ctx: nnxt.StrategyContext) -> None:
+        nnxt.log_info(
+            "order event=[ORDER_EVENT] order_id=[{}] status=[{}] filled=[{}] remaining=[{}]".format(
+                event.order_id,
+                event.status,
+                event.filled_quantity,
+                event.remaining_quantity,
+            )
+        )
+
+    def on_trade(self, event: nnxt.TradeEvent, ctx: nnxt.StrategyContext) -> None:
+        nnxt.log_info(
+            "trade event=[TRADE_EVENT] order_id=[{}] trade_id=[{}] qty=[{}] price=[{}]".format(
+                event.order_id,
+                event.trade_id,
+                event.quantity,
+                event.price,
+            )
+        )
+
 
 def main() -> None:
     nnxt.setup_log()
-    master_addr = sys.argv[1] if len(sys.argv) > 1 else None
+    master_addr = sys.argv[1] if len(sys.argv) > 1 else "ipc:///tmp/nnxt/master"
     nnxt.log_info("creating strategy event=[STRATEGY_CREATE]")
     instrument = nnxt.InstrumentId("IF2409")
     strategy = DemoStrategy(instrument)

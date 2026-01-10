@@ -441,12 +441,14 @@ name = "nnxt-gateway"
 version = "0.1.0"
 dependencies = [
  "nng",
+ "nnxt-actors",
  "nnxt-master",
  "nnxt-rapid",
  "nnxt-specs",
  "nnxt-strategy",
  "nnxt-utils",
  "serde_json",
+ "tracing",
 ]
 
 [[package]]
@@ -600,6 +602,7 @@ dependencies = [
 name = "py-nnxt"
 version = "0.1.0"
 dependencies = [
+ "nnxt-gateway",
  "nnxt-rapid",
  "nnxt-specs",
  "nnxt-strategy",
