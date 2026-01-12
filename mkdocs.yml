@@ -1,0 +1,154 @@
+site_name: nnxt
+site_description: 高性能量化交易框架 - Python + Rust 混合架构
+site_url: https://nnquant.github.io/nnxt/
+repo_name: nnquant/nnxt
+repo_url: https://github.com/nnquant/nnxt
+
+theme:
+  name: material
+  language: zh
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: 切换至深色模式
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: 切换至浅色模式
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.indexes
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search:
+      lang:
+        - zh
+        - en
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [py-nnxt/python]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            docstring_style: google
+            docstring_section_style: spacy
+            merge_init_into_class: true
+            show_signature_annotations: true
+            separate_signature: true
+  - gen-files:
+      scripts:
+        - scripts/gen_api_docs.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      repo_url_shorthand: true
+      user: nnquant
+      repo: nnxt
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+nav:
+  - 首页: index.md
+  - 快速开始:
+    - getting-started/index.md
+    - 安装指南: getting-started/installation.md
+    - 快速上手: getting-started/quickstart.md
+  - 用户指南:
+    - user-guide/index.md
+    - 数据模型: user-guide/data-model.md
+    - 策略开发: user-guide/strategy-development.md
+    - 网关集成: user-guide/gateway-integration.md
+    - 性能优化: user-guide/performance.md
+    - 类型系统: user-guide/type-system.md
+  - 实战手册:
+    - cookbook/index.md
+    - 批量数据处理: cookbook/batch-processing.md
+    - 高性能管线: cookbook/high-performance-pipeline.md
+    - 错误处理: cookbook/error-handling.md
+    - 回测系统: cookbook/backtesting.md
+    - 调试技巧: cookbook/debugging.md
+  - 核心概念:
+    - concepts/index.md
+    - 架构设计: concepts/architecture.md
+    - 执行模型: concepts/execution-model.md
+    - 语义保证: concepts/semantics.md
+    - 性能模型: concepts/performance-model.md
+  - API 参考:
+    - api/index.md
+    - Python API: api/python/
+    - Rust API: api/rust.md
+  - 贡献指南:
+    - contributing/index.md
+    - 文档规范: contributing/documentation.md
+    - 开发流程: contributing/development.md
+    - 发布策略: contributing/release.md
+  - 更新日志: changelog.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/nnquant/nnxt
+  version:
+    provider: mike
+
+extra_css:
+  - stylesheets/extra.css
