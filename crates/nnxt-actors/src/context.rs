@@ -10,9 +10,7 @@ use nnxt_rapid::{cleanup, Address, Reader, Writer};
 use crate::error::Error;
 use crate::reactor::{ControlHandle, RapidSource, RapidSourcesHandle};
 
-struct WriterEntry {
-    writer: Box<dyn AnyWriter>,
-}
+type WriterEntry = Box<dyn AnyWriter>;
 
 /// 类型擦除的 Writer trait
 pub trait AnyWriter: Send {
@@ -80,25 +78,23 @@ impl ActorContext {
         let writer = Writer::<M>::create(&address, capacity)?;
         self.writers.insert(
             addr.to_string(),
-            WriterEntry {
-                writer: Box::new(TypedWriter { inner: writer }),
-            },
+            Box::new(TypedWriter { inner: writer }),
         );
         Ok(())
     }
 
     /// 发布消息到队列
     pub fn publish<M: Copy>(&mut self, addr: &str, msg: &M) -> Result<(), Error> {
-        let entry = self
+        let writer = self
             .writers
             .get_mut(addr)
             .ok_or_else(|| Error::QueueNotFound(addr.to_string()))?;
         // SAFETY: 调用者保证类型匹配
         unsafe {
-            let ptr = entry.writer.prepare_raw() as *mut M;
+            let ptr = writer.prepare_raw() as *mut M;
             std::ptr::write(ptr, *msg);
         }
-        entry.writer.commit();
+        writer.commit();
         Ok(())
     }
 

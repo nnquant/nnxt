@@ -14,8 +14,8 @@ use nnxt_specs::market::{InstrumentId, ORDER_BOOK_DEPTH};
 use nnxt_specs::{OrderBook, OrderEvent, OrderStatus, PriceType, Side, TradeEvent};
 use nnxt_strategy::{Action, Intent, RunnerConfig, Strategy, StrategyContext, StrategyRunner};
 use nnxt_utils::clock::{Clock, InstantClock, MonotonicClock};
-use nnxt_utils::{setup_log as nnxt_setup_log, setup_signal};
-use pyo3::exceptions::{PyKeyboardInterrupt, PyRuntimeError, PyValueError};
+use nnxt_utils::setup_log as nnxt_setup_log;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict, PyModule, PyTuple, PyType};
 use tracing::{debug, error, info, warn};
@@ -757,39 +757,8 @@ impl PyStrategy {
     fn on_trade(&mut self, _event: &PyTradeEvent, _ctx: &PyStrategyContext) {}
 }
 
-fn call_python_method(obj: &Bound<'_, PyAny>, name: &str) -> PyResult<()> {
-    obj.call_method0(name)?;
-    Ok(())
-}
-
 fn py_err_to_runner(err: PyErr) -> RunnerError {
     RunnerError::Callback(format!("{:?}", err))
-}
-
-fn should_stop(py: Python<'_>) -> PyResult<bool> {
-    match py.check_signals() {
-        Ok(()) => Ok(false),
-        Err(err) => {
-            if err.is_instance_of::<PyKeyboardInterrupt>(py) {
-                return Ok(true);
-            }
-            Err(err)
-        }
-    }
-}
-
-fn run_gateway_loop(obj: &Bound<'_, PyAny>, poll_interval_ms: u64) -> PyResult<()> {
-    let shutdown = setup_signal();
-    call_python_method(obj, "on_start")?;
-    loop {
-        let stop = Python::with_gil(|py| should_stop(py))?;
-        if stop || shutdown.is_shutdown() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(poll_interval_ms));
-    }
-    call_python_method(obj, "on_stop")?;
-    Ok(())
 }
 
 /// StrategyRunner for Python strategies.
