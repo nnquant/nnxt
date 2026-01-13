@@ -27,7 +27,7 @@ where
         mut writer: Writer<'_>,
         event: &tracing::Event<'_>,
     ) -> fmt::Result {
-        let now = OffsetDateTime::now_utc();
+        let now = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
         let timestamp = now
             .format(TIMESTAMP_FORMAT)
             .unwrap_or_else(|_| "invalid-time".to_string());
